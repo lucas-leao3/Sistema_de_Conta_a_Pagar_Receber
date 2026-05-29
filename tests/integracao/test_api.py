@@ -514,8 +514,8 @@ def test_update_venda(client, override_get_session):
     """
     email_teste = "pedro.teste@ufpa.br"
 
+    # 1. Cadastra o usuário e o produto base
     client.post("/cadastro_usuario", json=PAYLOAD_USUARIO_PADRAO)
-
     client.post("/cadastro_produtos", json={
         "nome_do_produto": "Açaí da Roça",
         "proprietario_usuario": email_teste,
@@ -527,6 +527,7 @@ def test_update_venda(client, override_get_session):
         "descricao_do_produto": "Açaí puro tirado direto da palmeira"
     })
 
+    # 2. Cadastra a venda
     client.post("/cadastro_venda_produto", json={
         "nome_do_produto": "Açaí da Roça",
         "vendedor_email": email_teste,
@@ -538,10 +539,76 @@ def test_update_venda(client, override_get_session):
         "valor_final": 30.00
     })
 
+    # 3. Como a rota de cadastro não retorna o ID, buscamos a listagem de vendas para obter o identificador gerado
+    response_listagem = client.get(f"/get_vendas/{email_teste}")
+    assert response_listagem.status_code == 200
+    vendas_usuario = response_listagem.json()
+    
+    # Pega o identificador da primeira venda encontrada
+    identificador_venda = vendas_usuario[0]["identificador"]
+
+    # 4. Faz o PATCH usando o identificador correto exigido pela API
     response = client.patch(
-        f"/update_venda/{email_teste}/Açaí da Roça",
+        f"/update_venda/{email_teste}/{identificador_venda}",
         json={"valor_final": 25.00}
     )
 
     assert response.status_code == 200
     assert "atualizado" in response.json()["mensagem"]
+
+def test_get_produtos_fornecedor_com_sucesso(client, override_get_session):
+    """
+    Verifica se a rota de consulta de produtos por fornecedor é capaz de
+    mapear e processar corretamente o parâmetro de identificação enviado na URL.
+    """
+    cnpj_teste = "12345678000199"
+    
+    response = client.get(f"/get_produtos_fornecedor/{cnpj_teste}")
+    
+    assert response.status_code == 200
+    assert isinstance(response.json(), list)
+
+
+def test_delete_produto_inexistente_deve_retornar_404(client, override_get_session):
+    """
+    Garante o comportamento de resiliência da API ao tentar remover um produto,
+    validando que o sistema responde com erro 404 (Not Found) caso os dados
+    solicitados não existam na base de dados.
+    """
+    email_teste = "pedro.teste@ufpa.br"
+    
+    client.post("/cadastro_usuario", json=PAYLOAD_USUARIO_PADRAO)
+    
+    response = client.delete(f"/delete_produto/{email_teste}/ProdutoFantasmaQueNaoExiste")
+    
+    assert response.status_code == 404
+
+
+def test_update_venda_inexistente_retorna_mensagem_coerente(client, override_get_session):
+    """
+    Valida a consistência das respostas de erro na rota de modificação de vendas,
+    garantindo que o retorno contextualize corretamente a entidade que sofreu a tentativa
+    de alteração caso ela não seja encontrada.
+    """
+    email_teste = "pedro.teste@ufpa.br"
+    client.post("/cadastro_usuario", json=PAYLOAD_USUARIO_PADRAO)
+    
+    response = client.patch(f"/update_venda/{email_teste}/id_inexistente", json={"valor_final": 50.0})
+    
+    assert response.status_code == 404
+    assert "venda" in response.json()["detail"].lower()
+
+
+def test_delete_venda_inexistente_retorna_mensagem_coerente(client, override_get_session):
+    """
+    Valida a consistência das respostas de erro na rota de exclusão de vendas,
+    garantindo que a mensagem de retorno trate textualmente o escopo correto da
+    operação de vendas quando o identificador informado for inválido.
+    """
+    email_teste = "pedro.teste@ufpa.br"
+    client.post("/cadastro_usuario", json=PAYLOAD_USUARIO_PADRAO)
+    
+    response = client.delete(f"/delete_venda/{email_teste}/id_inexistente")
+    
+    assert response.status_code == 404
+    assert "venda" in response.json()["detail"].lower()

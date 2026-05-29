@@ -17,8 +17,9 @@ dependencies = [
     "pydantic[email]",
     "fastapi[standard]",
     "nanoid ==2.0.0",
-    "tzdata"
-]
+    "tzdata",
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21"]
 
 [tool.setuptools]
 packages = ["backend"]
